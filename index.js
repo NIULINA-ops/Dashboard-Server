@@ -287,7 +287,7 @@ app.post('/domains/add', (req, res) => {
 });
 
 // 更新域名
-app.put('/domains/update', (req, res) => {
+app.post('/domains/update', (req, res) => {
   logger.log(new Date() + `/domains/update调用`);
   const id = req.body.id;
   const { remark,  security_incidents} = req.body;
@@ -355,6 +355,24 @@ app.post('/events/add', (req, res) => {
       res.json({
         ...successBody(),
         description: '已添加数据'
+      });
+    }
+  });
+});
+
+app.post('/events/delete/:id', (req, res) => {
+  logger.log(new Date() + `/events/delete/:id调用`);
+  const id = req.params.id;
+  const sqlModify = db.prepare(`DELETE FROM events WHERE _id = ?`);
+  sqlModify.run(id, (err) => {
+    if (err) {
+      logger.log(new Date() + ` /events/delete/`+ id + `删除数据失败`);
+      res.status(500).json({ error: '删除数据失败' });
+    } else {
+      logger.log(new Date() + ` /events/delete/`+ id + `删除数据成功`);
+      res.json({
+        ...successBody({data: true}),
+        description: '已删除数据'
       });
     }
   });
@@ -483,7 +501,7 @@ app.post('/qaItems/add', (req, res) => {
   });
 });
 // 更新QA
-app.put('/qaItems/update', (req, res) => {
+app.post('/qaItems/update', (req, res) => {
   logger.log(new Date() + `/qaItems/update调用`);
   const id = req.body.id;
   const { title,  description, tag} = req.body;
@@ -502,7 +520,7 @@ app.put('/qaItems/update', (req, res) => {
   });
 });
 // 删除QA
-app.delete('/qaItems/delete/:id', (req, res) => {
+app.post('/qaItems/delete/:id', (req, res) => {
   logger.log(new Date() + `/qaItems/delete/:id调用`);
   const id = req.params.id;
   const sqlModify = db.prepare(`DELETE FROM qa WHERE _id = ?`);
