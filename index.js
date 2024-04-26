@@ -18,7 +18,7 @@ const app = express();
 const port = 8888; // 你可以根据需要更改端口号
 
 // 指定数据库文件路径
-const sqliteDbPath = 'E:\\database\\sqlite\\DomainManage.db';
+const sqliteDbPath = '/usr/local/sqlite3/db/DomainManage.db';
 
 // 创建数据库连接
 const db = new sqlite3.Database(sqliteDbPath);
@@ -74,22 +74,22 @@ const checkStatus = (applyScope, localIP, publicIP) => {
   // 未上线仅内网解析
   if (applyScope === '2' && publicIP === '' && localIP !== '') return 3;
   // 未解析
-  if (publicIP === '' && localIP === '') return 1;
+  if (!publicIP && !localIP) return 1;
   // 异常
   if (applyScope === '1' && publicIP !== '') return 4;
 }
 
 const checkEvents = (applyScope, newLocalIP, newPublicIP, oldLocalIP, oldPublicIP) => {
   // 申请外网，但是仅解析了内网
-  if (applyScope === '2' && newPublicIP === '' && newLocalIP !== '' && oldLocalIP === '') return 6;
+  if (applyScope === '2' && !newPublicIP && newLocalIP && !oldLocalIP) return 6;
   // 申请外网，上线
-  if (applyScope === '2' && newPublicIP !== '' && oldPublicIP === '') return 8;
+  if (applyScope === '2' && newPublicIP && !oldPublicIP) return 8;
   // 申请内网，上线
-  if (applyScope === '1' && oldLocalIP === '' && newLocalIP !== '') return 8;
+  if (applyScope === '1' && !oldLocalIP && newLocalIP) return 8;
   // 申请外网，外网转内网
-  if (applyScope === '2' && oldPublicIP !== '' && newPublicIP === '' && newLocalIP !== '') return 12;
+  if (applyScope === '2' && oldPublicIP && !newPublicIP && newLocalIP) return 12;
   // 下线
-  if ((newLocalIP === '' && oldLocalIP !== '') || (newPublicIP === '' && oldPublicIP !== '')) return 10;
+  if ((!newLocalIP && oldLocalIP) || (!newPublicIP && oldPublicIP)) return 10;
 }
 
 // 中间件：解析请求体中的 JSON 数据
@@ -130,24 +130,24 @@ app.get('/domains', (req, res) => {
 });
 
 // 更新IP
-const refreshIp = () => {
+const refreshIp = (mode = 'Auto') => {
   logger.log('/refreshIp');
   return new Promise((resolve, reject) => {
     db.all('SELECT * FROM domain', (err, rowsAll) => {
       if (err) {
         reject();
       } else {
-        getIP(rowsAll).then(() => {
+        getIP(rowsAll, mode).then(() => {
           resolve();
         });
       }
     });
   });
 }
-const handleIP = (updateRows, publicIP, localIP) => {
+const handleIP = (updateRows, publicIP, localIP, mode = 'Auto') => {
   const {_id, domain, title, status, apply_scope, server_IP, local_server_IP} = updateRows;
   const statusNew = checkStatus(apply_scope, localIP, publicIP) + '';
-  let dateTime= new Date().setDate(new Date().getDate() - 1);
+  let dateTime= (mode === 'Auto') ? new Date().setDate(new Date().getDate() - 1) : new Date().setDate(new Date().getDate());
   dateTime = new Date(dateTime);
 
   if (status && (status !== statusNew)) {
@@ -166,7 +166,7 @@ const handleIP = (updateRows, publicIP, localIP) => {
     sqlModify.run(publicIP, localIP, statusNew, _id);
   }
 }
-const getIP = (rowsAll) => {
+const getIP = (rowsAll, mode = 'Auto') => {
   return new Promise((resolve, reject) => {
     const publicObjs = rowsAll.map(r => {
       const domain = r.fix_domain || r.domain;
@@ -210,7 +210,7 @@ const getIP = (rowsAll) => {
             const localIP = localValues.find(v => v.id === id).ip || '';
 
 
-            handleIP(updateRows, publicIP, localIP);
+            handleIP(updateRows, publicIP, localIP, mode);
           }
 
           // 提交事务
@@ -227,7 +227,7 @@ const getIP = (rowsAll) => {
 }
 app.get('/refreshIp', (req, res) => {
   logger.log(new Date() + `/refreshIp调用`);
-  refreshIp().then(() => {
+  refreshIp('Manual').then(() => {
     logger.log(new Date() + `/refreshIp调用成功`);
     res.json({
       ...successBody(),
@@ -262,8 +262,17 @@ app.post('/domains/add', (req, res) => {
     // 使用循环将数据逐条插入到数据表中
     for (let domain of req.body) {
       const { DWMC, DWDM, WZMC, WZGLYXM, SQYM, DZYX, FWFW, LXFS, LSH, LCJSSJ, YMLX} = domain;
-      let sqlAdd = db.prepare(`INSERT INTO domain (_id, title, domain, affiliation_unit, administrator, administrator_phone, apply_scope, college, administrator_email, apply_time, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-      sqlAdd.run(LSH, WZMC, SQYM, DWMC, WZGLYXM, LXFS, FWFW, DWDM, DZYX, LCJSSJ, YMLX);
+
+      let sqlAdd = db.prepare(`INSERT INTO domain (_id, title, domain, affiliation_unit, administrator, administrator_phone, apply_scope, college, administrator_email, apply_time, type, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      sqlAdd.run(LSH, WZMC, SQYM, DWMC, WZGLYXM, LXFS, FWFW, DWDM, DZYX, LCJSSJ, YMLX, 1, (err) => {
+        if (!err) {
+          db.all('SELECT * FROM domain where _id is ' + LSH, (err, rowsAll) => {
+            if (!err) {
+              getIP(rowsAll, 'Manal');
+            }
+          });
+        }
+      });
       logger.log(new Date() + `/domains/add` + LSH + '添加成功');
     }
 
