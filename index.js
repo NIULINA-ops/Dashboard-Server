@@ -163,9 +163,11 @@ const handleIP = (updateRows, publicIP, localIP, mode = 'Auto') => {
     logger.log(new Date() + `/更新domain表：id:` + _id + ',publicIP: ' + publicIP + ',localIP: ' + localIP + ',uptime: ' + Math.floor(+dateTime/1000));
     sqlModify.run(publicIP, localIP, statusNew, Math.floor(+dateTime/1000), _id);
   } else {
-    const sqlModify = db.prepare(`UPDATE domain SET server_IP = ? ,local_server_IP = ?, status = ? WHERE _id = ?`);
-    logger.log(new Date() + `/更新domain表：id:` + _id + ',publicIP: ' + publicIP + ',localIP: ' + localIP);
-    sqlModify.run(publicIP, localIP, statusNew, _id);
+    if ((server_IP !== publicIP) || (local_server_IP !== localIP)) {
+      const sqlModify = db.prepare(`UPDATE domain SET server_IP = ? ,local_server_IP = ?, status = ? WHERE _id = ?`);
+      logger.log(new Date() + `/更新domain表：id:` + _id + ',publicIP: ' + publicIP + ',localIP: ' + localIP);
+      sqlModify.run(publicIP, localIP, statusNew, _id);
+    }
   }
 }
 const getIP = (rowsAll, mode = 'Auto') => {
@@ -210,7 +212,6 @@ const getIP = (rowsAll, mode = 'Auto') => {
             const publicIP = (ip === '0') ? '' : ip.split(';')[0];
             const localIP = localValues.find(v => v.id === id).ip || '';
 
-            logger.log('id:' + id + ', publicIP:' + publicIP + ', localIP:' + localIP);
             handleIP(updateRows, publicIP, localIP, mode);
           }
 
