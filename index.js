@@ -19,6 +19,7 @@ const port = 8888; // 你可以根据需要更改端口号
 
 // 指定数据库文件路径
 const sqliteDbPath = '/usr/local/sqlite3/db/DomainManage.db';
+//const sqliteDbPath = '/Users/niulina/Desktop/DomainManage.db';
 
 // 创建数据库连接
 const db = new sqlite3.Database(sqliteDbPath);
@@ -151,7 +152,6 @@ const handleIP = (updateRows, publicIP, localIP, mode = 'Auto') => {
   dateTime = new Date(dateTime);
 
   if (status && (status !== statusNew)) {
-    console.log(domain, 'old:' + server_IP, 'new:' + publicIP)
     const events = checkEvents(apply_scope, localIP, publicIP, local_server_IP, server_IP) || '99';
     const id = +new Date() + '_' + _id;
     const sqlAdd = db.prepare(`INSERT INTO events (_id, domain_id, domain, title, events, remark, detection_type) VALUES (?, ?, ?, ?, ?, ?, ?)`);
@@ -160,9 +160,11 @@ const handleIP = (updateRows, publicIP, localIP, mode = 'Auto') => {
 
   if (status !== '2' && statusNew === '2') {
     const sqlModify = db.prepare(`UPDATE domain SET server_IP = ? ,local_server_IP = ?, status = ?, uptime = ? WHERE _id = ?`);
+    logger.log(new Date() + `/更新domain表：id:` + _id + ',publicIP: ' + publicIP + ',localIP: ' + localIP + ',uptime: ' + Math.floor(+dateTime/1000));
     sqlModify.run(publicIP, localIP, statusNew, Math.floor(+dateTime/1000), _id);
   } else {
     const sqlModify = db.prepare(`UPDATE domain SET server_IP = ? ,local_server_IP = ?, status = ? WHERE _id = ?`);
+    logger.log(new Date() + `/更新domain表：id:` + _id + ',publicIP: ' + publicIP + ',localIP: ' + localIP);
     sqlModify.run(publicIP, localIP, statusNew, _id);
   }
 }
@@ -172,7 +174,7 @@ const getIP = (rowsAll, mode = 'Auto') => {
       const domain = r.fix_domain || r.domain;
       const index = domain.indexOf('edu.cn') + 6;
       r.domain = domain.slice(0, index).replace(/https:\/\//gi, '').replace(/http:\/\//gi, '').replace(/www./gi, '');
-      let url = 'https://xiaoapi.cn/API/sping.php?url=' + r.domain;
+      let url = 'http://119.29.29.29/d?dn=' + r.domain;
       return {
         id: r['_id'], url
       }
@@ -202,14 +204,13 @@ const getIP = (rowsAll, mode = 'Auto') => {
           // 使用循环将数据逐条插入到数据表中
           for (let v of publicValues) {
             let { id, ip} = v;
-            const reg = /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/;
-            const updateRows = rowsAll.find( r => r._id === id);
-            const {server_IP} = updateRows;
 
-            const publicIP = (ip.indexOf('不合法') > -1) ? '' : (ip.indexOf('502 Bad Gateway') > -1 ? server_IP : (ip.match(reg) ? ip.match(reg)[0] : ''));
+            const updateRows = rowsAll.find( r => r._id === id);
+
+            const publicIP = (ip === '0') ? '' : ip.split(';')[0];
             const localIP = localValues.find(v => v.id === id).ip || '';
 
-
+            logger.log('id:' + id + ', publicIP:' + publicIP + ', localIP:' + localIP);
             handleIP(updateRows, publicIP, localIP, mode);
           }
 
