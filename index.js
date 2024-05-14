@@ -543,7 +543,11 @@ app.post('/qaItems/delete/:id', (req, res) => {
 // 定时任务
 schedule.scheduleJob('00 10 01 * * *', function() {
   logger.log(new Date() + `定时任务启动`);
-  refreshIp();
+  fs.copyFile('/usr/local/sqlite3/db/DomainManage.db', '/usr/local/sqlite3/db-back/DomainManage.db', (err) => {
+    if (err) throw err;
+    logger.log(new Date() + `数据库备份成功`);
+    refreshIp();
+  });
 });
 
 // 启动服务
